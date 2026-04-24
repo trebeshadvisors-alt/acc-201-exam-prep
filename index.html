@@ -169,14 +169,34 @@ function QuizScreen({ q, idx, total, attempts, onAnswer, loading, apiError }) {
 }
 
 function FeedbackScreen({ q, selected, feedback, correct, attempts, onNext, onRetry, loadingVariant }) {
-  const isWrong = correct === false || correct === null || correct === undefined ? true : !correct;
-  const wrongAndCanRetry = isWrong && attempts < 3;
-  const wrongAndExhausted = isWrong && attempts >= 3;
+  const isWrong = !correct;
+  const canRetry = isWrong && attempts < 3;
+  const exhausted = isWrong && attempts >= 3;
   const left = 3 - attempts;
   return (
     <div className={'min-h-screen p-4 ' + (isWrong ? 'bg-red-50' : 'bg-green-50')}>
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-2xl shadow p-6 mt-6 fade-in">
+      <div className="max-w-2xl mx-auto pt-6">
+
+        {canRetry && (
+          <button onClick={() => onRetry(false)}
+            style={{fontSize:'1.1rem', padding:'18px', marginBottom:'12px', display:'block', width:'100%',
+              background:'#ea580c', color:'white', border:'none', borderRadius:'14px',
+              fontWeight:'800', cursor:'pointer', boxShadow:'0 2px 8px rgba(234,88,12,0.4)'}}>
+            Try Again &mdash; {left} attempt{left !== 1 ? 's' : ''} left
+          </button>
+        )}
+
+        {exhausted && (
+          <button onClick={() => onRetry(true)} disabled={loadingVariant}
+            style={{fontSize:'1.1rem', padding:'18px', marginBottom:'12px', display:'block', width:'100%',
+              background:'#7c3aed', color:'white', border:'none', borderRadius:'14px',
+              fontWeight:'800', cursor:'pointer', opacity: loadingVariant ? 0.6 : 1,
+              boxShadow:'0 2px 8px rgba(124,58,237,0.4)'}}>
+            {loadingVariant ? 'Generating variant question...' : 'Practice a New Variant Question'}
+          </button>
+        )}
+
+        <div className="bg-white rounded-2xl shadow p-6 fade-in">
           <div className={'flex items-center gap-3 mb-4 pb-4 border-b ' + (isWrong ? 'border-red-100' : 'border-green-100')}>
             <span className="text-3xl">{isWrong ? '❌' : '✅'}</span>
             <div>
@@ -184,42 +204,25 @@ function FeedbackScreen({ q, selected, feedback, correct, attempts, onNext, onRe
                 {isWrong ? 'Not quite — keep thinking!' : 'Correct!'}
               </p>
               <p className="text-xs text-gray-400">You chose: <em>{selected}</em></p>
-              {wrongAndCanRetry && (
-                <p className="text-xs text-orange-600 font-semibold mt-0.5">
-                  {left} attempt{left !== 1 ? 's' : ''} remaining
-                </p>
-              )}
             </div>
           </div>
           <div className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl p-4">{feedback}</div>
-          {wrongAndExhausted && (
+          {exhausted && (
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm">
               <p className="font-semibold text-yellow-800 mb-1">Correct answer:</p>
               <p className="text-yellow-900">{q.answer}</p>
             </div>
           )}
-          <div className="mt-5 space-y-3">
-            {wrongAndCanRetry && (
-              <button onClick={() => onRetry(false)}
-                className="w-full py-3 rounded-xl font-bold text-base bg-orange-500 hover:bg-orange-600 text-white transition-colors shadow-sm">
-                🔁 Try Again ({left} attempt{left !== 1 ? 's' : ''} left)
-              </button>
-            )}
-            {wrongAndExhausted && (
-              <button onClick={() => onRetry(true)} disabled={loadingVariant}
-                className="w-full py-3 rounded-xl font-bold text-base bg-purple-600 hover:bg-purple-700 text-white transition-colors shadow-sm disabled:opacity-50">
-                {loadingVariant ? '⏳ Generating variant…' : '🔄 Practice a New Variant'}
-              </button>
-            )}
+          <div className="mt-5">
             {!isWrong && (
               <button onClick={onNext}
-                className="w-full py-3 rounded-xl font-bold text-base bg-green-600 hover:bg-green-700 text-white transition-colors shadow-sm">
+                className="w-full py-3 rounded-xl font-bold text-base bg-green-600 hover:bg-green-700 text-white transition-colors">
                 Next Question →
               </button>
             )}
             {isWrong && (
               <button onClick={onNext}
-                className="w-full py-2 rounded-xl font-medium text-sm text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 bg-white transition-colors">
+                className="w-full py-2 rounded-xl font-medium text-sm text-gray-400 hover:text-gray-600 border border-gray-200 hover:border-gray-300 bg-white transition-colors">
                 Skip to Next →
               </button>
             )}
