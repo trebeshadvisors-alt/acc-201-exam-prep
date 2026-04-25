@@ -34,20 +34,19 @@ const UNIT_INFO = [
 
 const SOCRATIC = `You are a Socratic accounting tutor for an introductory financial accounting course (ACC 201). The student got a question wrong. Guide them toward the answer WITHOUT revealing it. Ask 1-2 pointed questions that expose their misconception. Be concise (3-5 sentences). Never say the correct answer. Start with brief encouragement. End with a question that makes them think. Respond with plain text only.
 
-GAAP CONVENTIONS — apply these precisely:
-- DEPLETION (GAAP): Step 1: Depletion rate = Total capitalized cost / Estimated total recoverable units. Step 2: Depletion EXPENSE = Rate x Units SOLD in the period. Step 3: Units extracted but NOT yet sold are carried as Inventory = Rate x (Units extracted - Units sold). Never use units extracted for the expense line.
-- DEPRECIATION: Straight-line = (Cost - Salvage) / Useful life. Double-declining = Book value x (2 / Useful life). Units-of-production = (Cost - Salvage) / Total estimated units x Units PRODUCED (not sold).
-- INVENTORY (FIFO/LIFO/Weighted Avg): apply perpetual or periodic exactly as the question states.
-- REVENUE RECOGNITION: recognize when services are performed or goods delivered. Cash received in advance = Unearned Revenue (liability). Owner investments are never revenue.`;
+IMPORTANT COURSE-SPECIFIC CONVENTIONS — always follow these, they override general accounting rules:
+- Depletion expense is calculated using units SOLD during the period (not units extracted/removed). Depletion rate = Total cost / Estimated total units. Expense = Rate x Units sold.
+- Depreciation: this course uses straight-line, double-declining-balance, and units-of-production. Units-of-production uses units produced/used (not sold).
+- Inventory (FIFO/LIFO/Weighted Average): follow perpetual or periodic as stated in the question.
+- Revenue recognition: recognize revenue when services are performed or goods delivered — NOT when cash is received for future services, and NOT for owner investments.`;
 
 const VARIANT = `You are an accounting professor for an introductory financial accounting course (ACC 201). Generate a VARIANT multiple-choice question on the same concept as the original but with different numbers/company/scenario. Return ONLY valid JSON: {"question":"...","choices":["A","B","C","D"],"answer":"exact text of correct choice"}. No markdown, no explanation.
 
-GAAP CONVENTIONS — apply these precisely when building the variant and computing the answer:
-- DEPLETION (GAAP): Step 1: Rate = Total capitalized cost / Estimated total recoverable units. Step 2: Depletion EXPENSE = Rate x Units SOLD. Step 3: Inventory of unsold units = Rate x (Units extracted - Units sold). NEVER use units extracted as the expense base.
-- DEPRECIATION: Straight-line = (Cost - Salvage) / Useful life years. Double-declining = Book value x (2 / Useful life). Units-of-production = (Cost - Salvage) / Total estimated units x Units PRODUCED (not sold).
-- INVENTORY: apply perpetual or periodic exactly as stated.
-- REVENUE: recognize when earned (services performed / goods delivered). Cash received in advance = liability. Owner investments are not revenue.
-- ARITHMETIC CHECK: before finalizing, verify your calculation step by step. The "answer" field must be the exact string of one of the four choices.`;
+IMPORTANT COURSE-SPECIFIC CONVENTIONS — always follow these exactly when generating variants and computing the answer:
+- Depletion expense uses units SOLD (not extracted/removed). Formula: (Total cost / Estimated total units) x Units sold.
+- Units-of-production depreciation uses units produced (not sold).
+- Revenue recognition: recognize when services performed or goods delivered — exclude cash received for future services, exclude owner investments.
+- Always verify your arithmetic before writing the answer. The answer field must exactly match one of the four choices.`;
 
 function shuffle(arr){
   const a=[...arr];
@@ -350,6 +349,98 @@ function InstructionsScreen({mode, unit, count, onStart, onBack}) {
   );
 }
 
+
+function isHeaderRow(cells) {
+  return cells.every(function(c) {
+    var t = c.trim();
+    return !t.match(/^\$[\d,]/) && !t.match(/^[\d,]+\.?\d*$/) && !t.match(/^\d+ unit/i);
+  });
+}
+
+function renderQuestion(text) {
+  if (!text) return null;
+  var lines = text.split('\n');
+  var result = [];
+  var i = 0;
+  var segIdx = 0;
+
+  while (i < lines.length) {
+    var line = lines[i];
+
+    if (line.indexOf('|') !== -1) {
+      var tableLines = [];
+      while (i < lines.length && lines[i].indexOf('|') !== -1) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      var rows = tableLines.map(function(l) {
+        return l.split('|').map(function(c) { return c.trim(); });
+      });
+      var hasHeader = rows.length > 1 && isHeaderRow(rows[0]);
+      var headerRow = hasHeader ? rows[0] : null;
+      var dataRows = hasHeader ? rows.slice(1) : rows;
+
+      var tKey = 't' + segIdx;
+      result.push(
+        React.createElement('div', {key: tKey, style:{overflowX:'auto',marginBottom:'14px',
+          borderRadius:'8px',border:'0.5px solid #e5e7eb',backgroundColor:'#fafafa',padding:'4px 0'}},
+          React.createElement('table', {style:{width:'100%',borderCollapse:'collapse',fontSize:'13px'}},
+            headerRow ? React.createElement('thead', null,
+              React.createElement('tr', null,
+                headerRow.map(function(cell, ci) {
+                  return React.createElement('th', {key:ci, style:{
+                    color:'#6b7280',fontWeight:'500',fontSize:'11px',
+                    textTransform:'uppercase',letterSpacing:'0.05em',
+                    padding:'8px 12px',borderBottom:'1.5px solid #d1d5db',
+                    textAlign: ci === 0 ? 'left' : 'right',
+                    whiteSpace:'nowrap',background:'#f3f4f6'
+                  }}, cell || '');
+                })
+              )
+            ) : null,
+            React.createElement('tbody', null,
+              dataRows.map(function(row, ri) {
+                return React.createElement('tr', {key:ri},
+                  row.map(function(cell, ci) {
+                    var empty = cell === '' || cell === '?';
+                    return React.createElement('td', {key:ci, style:{
+                      padding:'7px 12px',
+                      borderBottom: ri < dataRows.length-1 ? '0.5px solid #e5e7eb' : 'none',
+                      color: empty ? '#9ca3af' : '#111827',
+                      textAlign: ci === 0 ? 'left' : 'right',
+                      fontVariantNumeric:'tabular-nums',
+                      fontSize:'13px'
+                    }}, empty ? '—' : cell);
+                  })
+                );
+              })
+            )
+          )
+        )
+      );
+      segIdx++;
+    } else {
+      var textLines = [];
+      while (i < lines.length && lines[i].indexOf('|') === -1) {
+        textLines.push(lines[i]);
+        i++;
+      }
+      var textContent = textLines.join('\n').trim();
+      if (textContent) {
+        var pKey = 'p' + segIdx;
+        result.push(
+          React.createElement('div', {key:pKey, style:{
+            fontSize:'15px',color:'#111827',lineHeight:'1.7',
+            whiteSpace:'pre-wrap',marginBottom:'10px'
+          }}, textContent)
+        );
+        segIdx++;
+      }
+    }
+  }
+  return result;
+}
+
 /* ── Quiz Screen ── */
 function QuizScreen({q, idx, total, attempts, onAnswer, loading, apiError, mode, timeLeft, totalTime, overtime, examResult}) {
   const [sel, setSel] = useState(null);
@@ -387,8 +478,8 @@ function QuizScreen({q, idx, total, attempts, onAnswer, loading, apiError, mode,
             </div>
           )}
 
-          <div style={{fontSize:'15px',color:'#111827',lineHeight:'1.7',whiteSpace:'pre-wrap',marginBottom:'20px'}}>
-            {q.question}
+          <div style={{marginBottom:'20px'}}>
+            {renderQuestion(q.question)}
           </div>
 
           {submitted ? (
