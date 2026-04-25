@@ -215,7 +215,7 @@ function SetupScreen({mode, onStart, onBack}) {
     onStart(apiKey.trim(), q, unit, count);
   }
 
-  const canStart = mode === 'exam' || apiKey.trim().startsWith('sk-');
+  const canStart = true; // API key is optional; study mode works with or without it
 
   return (
     <div style={{minHeight:'100vh',background:'#f8fafc',padding:'24px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
@@ -234,16 +234,18 @@ function SetupScreen({mode, onStart, onBack}) {
           {mode === 'study' && (
             <div style={{marginBottom:'20px'}}>
               <label style={{display:'block',fontWeight:'700',fontSize:'14px',color:'#374151',marginBottom:'6px'}}>
-                Anthropic API Key
+                Anthropic API Key <span style={{fontWeight:'400',color:'#9ca3af'}}>(optional — leave blank to skip)</span>
               </label>
               <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
-                placeholder="sk-ant-..."
+                placeholder="sk-ant-... (leave blank to skip)"
                 style={{width:'100%',border:'1.5px solid #d1d5db',borderRadius:'10px',padding:'10px 12px',
                   fontSize:'14px',outline:'none',boxSizing:'border-box'}}
                 onFocus={e => e.target.style.borderColor='#3b82f6'}
                 onBlur={e => e.target.style.borderColor='#d1d5db'} />
               <p style={{fontSize:'11px',color:'#9ca3af',margin:'4px 0 0 0'}}>
-                Key stays in your browser — never stored on any server
+                With a key: personalized AI hints after each answer. Without: standard feedback only.{' '}
+                <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer"
+                  style={{color:'#3b82f6',textDecoration:'none'}}>Get a free key at console.anthropic.com</a>
               </p>
             </div>
           )}
@@ -284,8 +286,8 @@ function SetupScreen({mode, onStart, onBack}) {
               color:'white',fontWeight:'800',fontSize:'16px',cursor: canStart ? 'pointer' : 'not-allowed'}}>
             {mode === 'study' ? 'Start Study Session' : 'Start Mock Exam'}
           </button>
-          {mode === 'study' && !canStart && (
-            <p style={{textAlign:'center',fontSize:'12px',color:'#9ca3af',marginTop:'6px'}}>Enter your Anthropic API key to continue</p>
+          {mode === 'study' && !apiKey.trim() && (
+            <p style={{textAlign:'center',fontSize:'12px',color:'#9ca3af',marginTop:'6px'}}>No API key? You'll get standard feedback — enter a key for AI-powered hints.</p>
           )}
         </div>
       </div>
@@ -523,7 +525,7 @@ function QuizScreen({q, idx, total, attempts, onAnswer, loading, apiError, mode,
 }
 
 /* ── Feedback Screen (Study Mode) ── */
-function FeedbackScreen({q, selected, feedback, correct, attempts, onNext, onRetry, loadingVariant}) {
+function FeedbackScreen({q, selected, feedback, correct, attempts, onNext, onRetry, loadingVariant, apiKey}) {
   const isWrong = !correct;
   const canRetry = isWrong && attempts < 3;
   const exhausted = isWrong && attempts >= 3;
@@ -542,7 +544,7 @@ function FeedbackScreen({q, selected, feedback, correct, attempts, onNext, onRet
           </button>
         )}
 
-        {exhausted && (
+        {exhausted && apiKey && (
           <button onClick={() => onRetry(true)} disabled={loadingVariant}
             style={{display:'block',width:'100%',padding:'16px',marginBottom:'12px',
               background:'#7c3aed',color:'white',border:'none',borderRadius:'14px',
@@ -826,6 +828,18 @@ function App() {
     }
 
     // Study mode
+    setIsCorrect(ok); setSelChoice(choice); setAttempts(newAttempts);
+
+    // No API key — show static feedback
+    if (!apiKey) {
+      const staticFb = ok
+        ? 'Correct! You have this concept down.'
+        : 'That\u2019s not the right answer. Review the relevant section in your course materials and try again.\n\nTip: Enter an Anthropic API key in Setup to get personalized AI hints that guide your thinking.';
+      setFeedback(staticFb);
+      setScreen('feedback');
+      return;
+    }
+
     setLoading(true); setApiErr('');
     try {
       const msg = 'Question: ' + curQ.question +
@@ -833,9 +847,6 @@ function App() {
         '\n\nStudent chose: "' + choice + '"\nCorrect answer: "' + curQ.answer + '"\nStudent is ' + (ok ? 'CORRECT' : 'WRONG') + '.';
       const fb = await callClaude(apiKey, [{role:'user',content:msg}], SOCRATIC);
       setFeedback(fb.replace(/^\[CORRECT\]\s*/, '').replace(/^\[NEEDS WORK\]\s*/, ''));
-      setIsCorrect(ok);
-      setSelChoice(choice);
-      setAttempts(newAttempts);
       setScreen('feedback');
     } catch(e) {
       setApiErr('Error: ' + e.message);
@@ -905,7 +916,7 @@ function App() {
   if (screen === 'feedback') return (
     <FeedbackScreen key={curQ_final.id + '-' + attempts} q={curQ_final} selected={selChoice}
       feedback={feedback} correct={isCorrect} attempts={attempts}
-      onNext={handleNext} onRetry={handleRetry} loadingVariant={loadingV} />
+      onNext={handleNext} onRetry={handleRetry} loadingVariant={loadingV} apiKey={apiKey} />
   );
   return (
     <QuizScreen q={curQ_final} idx={idx} total={queue.length} attempts={attempts}
